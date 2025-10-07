@@ -1,0 +1,9 @@
+# Qdrant configuration file
+# For more information, see the Qdrant documentation:
+# https://qdrant.tech/documentation/guides/configuration/
+
+log_level: INFO
+
+# Telemetry is enabled by default.
+# If you want to disable it, uncomment the following line.
+telemetry_disabled: true

@@ -1,0 +1,59 @@
+steps:
+  # Build the Docker image
+  # Fetch the Qdrant API key from Secret Manager
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - 'gcloud secrets versions access latest --secret=$_QDRANT_API_KEY_SECRET > /workspace/qdrant-api-key'
+
+  # Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'QDRANT_API_KEY=$(cat /workspace/qdrant-api-key)'
+      - '-t'
+      - '$_ZONE-docker.pkg.dev/$PROJECT_ID/$_AR_PATH/qdrant-cloudrun'
+      - '.'
+
+  # Push the Docker image to Google Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '$_ZONE-docker.pkg.dev/$PROJECT_ID/$_AR_PATH/qdrant-cloudrun']
+
+  # Fetch the Filestore IP address
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-filestore-ip'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - 'gcloud filestore instances describe $_FILESTORE_INSTANCE --zone=$_ZONE --format="value(networks.ipAddresses)" > /workspace/filestore-ip'
+
+  # Deploy the Docker image to Google Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run deploy qdrant-cloudrun \
+          --image $_ZONE-docker.pkg.dev/$PROJECT_ID/$_AR_PATH/qdrant-cloudrun \
+          --region $_ZONE \
+          --platform managed \
+          --allow-unauthenticated \
+          --set-secrets QDRANT__SERVICE__API_KEY=$_QDRANT_API_KEY_SECRET:latest \
+          --vpc-connector $_VPC_CONNECTOR \
+          --add-volume name=filestore-vol,type=cloud-filestore,location=$(cat /workspace/filestore-ip):/$_FILESTORE_SHARE \
+          --add-volume-mount volume=filestore-vol,mount-path=/qdrant/storage
+
+# Store the image in Google Artifact Registry
+images:
+  - '$_ZONE-docker.pkg.dev/$PROJECT_ID/$_AR_PATH/qdrant-cloudrun'
+
+# Substitutions
+substitutions:
+  _ZONE: us-central1
+  _AR_PATH: cloudbuild
+  _QDRANT_API_KEY_SECRET: qdrant-api-key
+  _VPC_CONNECTOR: qdrant-vpc-connector
+  _FILESTORE_INSTANCE: qdrant-filestore
+  _FILESTORE_SHARE: qdrant_storage
