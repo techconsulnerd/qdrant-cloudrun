@@ -21,29 +21,34 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', '$_ZONE-docker.pkg.dev/$PROJECT_ID/$_AR_PATH/qdrant-cloudrun']
 
-  # Fetch the Filestore IP address
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'get-filestore-ip'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - 'gcloud filestore instances describe $_FILESTORE_INSTANCE --zone=$_ZONE --format="value(networks.ipAddresses)" > /workspace/filestore-ip'
-
   # Deploy the Docker image to Google Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: 'bash'
+    entrypoint: gcloud
     args:
-      - '-c'
-      - |
-        gcloud run deploy qdrant-cloudrun \
-          --image $_ZONE-docker.pkg.dev/$PROJECT_ID/$_AR_PATH/qdrant-cloudrun \
-          --region $_ZONE \
-          --platform managed \
-          --allow-unauthenticated \
-          --set-secrets QDRANT__SERVICE__API_KEY=$_QDRANT_API_KEY_SECRET:latest \
-          --vpc-connector $_VPC_CONNECTOR \
-          --add-volume name=filestore-vol,type=cloud-filestore,location=$(cat /workspace/filestore-ip):/$_FILESTORE_SHARE \
-          --add-volume-mount volume=filestore-vol,mount-path=/qdrant/storage
+      - 'run'
+      - 'deploy'
+      - 'qdrant-cloudrun'
+      - '--execution-environment'
+      - 'gen2'
+      - '--image'
+      - '$_ZONE-docker.pkg.dev/$PROJECT_ID/$_AR_PATH/qdrant-cloudrun'
+      - '--region'
+      - '$_ZONE'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--port'
+      - '6333'
+      - '--set-secrets'
+      - 'QDRANT__SERVICE__API_KEY=$_QDRANT_API_KEY_SECRET:latest'
+      - '--set-env-vars'
+      - 'QDRANT__STORAGE__ON_NFS=true'
+      - '--vpc-connector'
+      - '$_VPC_CONNECTOR'
+      - '--add-volume'
+      - 'name=filestore-vol,type=nfs,location=$_FILESTORE_IP:/$_FILESTORE_SHARE'
+      - '--add-volume-mount'
+      - 'volume=filestore-vol,mount-path=/qdrant/storage'
 
 # Store the image in Google Artifact Registry
 images:
@@ -55,5 +60,5 @@ substitutions:
   _AR_PATH: cloudbuild
   _QDRANT_API_KEY_SECRET: qdrant-api-key
   _VPC_CONNECTOR: qdrant-vpc-connector
-  _FILESTORE_INSTANCE: qdrant-filestore
+  _FILESTORE_IP: 10.0.0.2
   _FILESTORE_SHARE: qdrant_storage

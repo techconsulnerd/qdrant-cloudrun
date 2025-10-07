@@ -79,7 +79,8 @@ To deploy the Qdrant service, you can use the provided Cloud Build configuration
 6.  **Submit the build to Google Cloud Build:**
 
     ```bash
-    gcloud builds submit --config cloudbuild.yaml --substitutions='_ZONE="us-central1",_AR_PATH="cloudbuild",_QDRANT_API_KEY_SECRET="qdrant-api-key",_VPC_CONNECTOR="qdrant-vpc-connector",_FILESTORE_INSTANCE="qdrant-filestore",_FILESTORE_SHARE="qdrant_storage"' .
+    export FILESTORE_IP=$(gcloud filestore instances describe qdrant-filestore --zone $_ZONE --format='value(networks.ipAddresses)')
+    gcloud builds submit --config cloudbuild.yaml --substitutions='_ZONE="us-central1",_AR_PATH="cloudbuild",_QDRANT_API_KEY_SECRET="qdrant-api-key",_VPC_CONNECTOR="qdrant-vpc-connector",_FILESTORE_IP="$FILESTORE_IP",_FILESTORE_SHARE="qdrant_storage"' .
     ```
 
     This command will build the Docker image, push it to the Google Artifact Registry, and deploy the service to Google Cloud Run.
@@ -102,7 +103,7 @@ The `cloudbuild.yaml` file uses the following substitutions:
 *   `_AR_PATH`: The name of the Artifact Registry repository. The default is `cloudbuild`.
 *   `_QDRANT_API_KEY_SECRET`: The name of the secret in Secret Manager that contains the Qdrant API key. The default is `qdrant-api-key`.
 *   `_VPC_CONNECTOR`: The name of the Serverless VPC Access connector. The default is `qdrant-vpc-connector`.
-*   `_FILESTORE_INSTANCE`: The name of the Filestore instance. The default is `qdrant-filestore`.
+*   `_FILESTORE_IP`: The IP address of the Filestore instance.
 *   `_FILESTORE_SHARE`: The name of the file share on the Filestore instance. The default is `qdrant_storage`.
 
 You can override these values by passing the `--substitutions` flag to the `gcloud builds submit` command.
